@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.mychoi.linencontrol"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.mychoi.linencontrol"
