@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.mychoi.linencontrol.ui.screen.HomeScreen
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -22,7 +23,7 @@ fun AppNavigation(navController: NavHostController) {
                 }
             )
         }
-
+        /*
         // 숫자 합산 계산 화면
         composable(route = Routes.SumCalculator.route) {
             SumCalculatorScreen(
@@ -40,5 +41,6 @@ fun AppNavigation(navController: NavHostController) {
                 }
             )
         }
+         */
     }
 }
