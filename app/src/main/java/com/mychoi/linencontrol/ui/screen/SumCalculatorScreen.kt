@@ -67,9 +67,9 @@ fun StockInputRow(item: StockItem, onValueChange: (String) -> Unit) {
             TextField(
                 value = item.input,
                 onValueChange = onValueChange,
-                label = { Text("숫자 입력 (공백 구분)") },
+                label = { Text("숫자 입력 (comma split)") },
                 modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
