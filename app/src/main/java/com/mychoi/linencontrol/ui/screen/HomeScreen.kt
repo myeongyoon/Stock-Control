@@ -89,7 +89,7 @@ fun HomeScreen(
                 title = "재고 계산",
                 description = "현재 재고에서 출고량을\n차감하여 계산합니다",
                 icon = Icons.Default.ShoppingCart,
-                onClick = onNavigateToStockCalculator,
+                onClick = { /* Todo: 재고 계산 UI 이동*/ },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
             )
         }
