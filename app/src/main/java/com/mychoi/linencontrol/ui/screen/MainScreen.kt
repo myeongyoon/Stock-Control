@@ -1,4 +1,4 @@
-package com.mychoi.linencontrol.ui.main
+package com.mychoi.linencontrol.ui.screen
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.mychoi.linencontrol.ui.viewmodel.MainViewModel
+import com.mychoi.linencontrol.ui.viewmodel.StockResult
 
 @Composable
 fun MainScreen(viewModel: MainViewModel = hiltViewModel()) {
