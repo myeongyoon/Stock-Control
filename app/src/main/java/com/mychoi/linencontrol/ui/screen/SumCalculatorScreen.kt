@@ -69,6 +69,14 @@ fun StockInputRow(item: StockItem, onValueChange: (String) -> Unit) {
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // 항목 이름 고정 너비
+            Text(
+                text = item.label,
+                modifier = Modifier.width(60.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
+
             TextField(
                 value = item.input,
                 onValueChange = onValueChange,
@@ -78,7 +86,7 @@ fun StockInputRow(item: StockItem, onValueChange: (String) -> Unit) {
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                text = "합계: ${item.result}",
+                text = "${item.result}",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
