@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mychoi.linencontrol.ui.screen.HomeScreen
+import com.mychoi.linencontrol.ui.screen.SumCalculatorScreen
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -23,16 +24,16 @@ fun AppNavigation(navController: NavHostController) {
                 }
             )
         }
-        /*
+
         // 숫자 합산 계산 화면
         composable(route = Routes.SumCalculator.route) {
             SumCalculatorScreen(
-                onNavigateBack = {
+                onNavigationBack = {
                     navController.popBackStack()
                 }
             )
         }
-
+        /*
         // 재고 차감 계산 화면
         composable(route = Routes.StockCalculator.route) {
             StockCalculatorScreen(
