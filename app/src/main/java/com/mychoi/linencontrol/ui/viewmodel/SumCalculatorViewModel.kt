@@ -14,7 +14,13 @@ class SumCalculatorViewModel @Inject constructor(
 
     var stockItems = mutableStateListOf<StockItem>().apply {
         if (isEmpty()) {
-            repeat(13) { add(StockItem(id = it)) }
+            val labels = listOf(
+                "한실이불커버","한실요커버","한실베개커버","양실이불커버(D)","양실이불커버(S)","양실베개커버","베드시트(D)",
+                "베드시트(S)","베드패드(D)","베드패드(S)","페이스타올","베스타올","걸레"
+            )
+            labels.forEachIndexed { index, label ->
+                add(StockItem(id = index, label = label))
+            }
         }
     }
 
