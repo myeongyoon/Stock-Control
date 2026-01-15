@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -41,6 +42,10 @@ fun SumCalculatorScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("항목별 합산 계산기", style = MaterialTheme.typography.headlineSmall)
+
+        TextButton(onClick = { viewModel.clearAllInputs() }) {
+            Text("전체 비우기", color = androidx.compose.ui.graphics.Color.Red)
+        }
 
         // ViewModel의 리스트를 순회하며 UI 생성
         viewModel.stockItems.forEach { item ->

@@ -31,4 +31,15 @@ class SumCalculatorViewModel @Inject constructor(
             )
         }
     }
+
+    fun clearAllInputs() {
+        // 리스트의 모든 요소를 순회하며 초기화된 객체로 교체
+        // index를 사용하여 기존 ID는 유지하고 내용만 비웁니다.
+        stockItems.indices.forEach { index ->
+            stockItems[index] = stockItems[index].copy(
+                input = "",
+                result = 0
+            )
+        }
+    }
 }
