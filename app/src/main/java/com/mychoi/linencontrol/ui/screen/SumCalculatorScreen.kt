@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -14,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -34,27 +38,35 @@ fun SumCalculatorScreen(
 ) {
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text("항목별 합산 계산기", style = MaterialTheme.typography.headlineSmall)
+    Scaffold(
+        modifier = Modifier.fillMaxSize()
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .imePadding()
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("항목별 합산 계산기", style = MaterialTheme.typography.headlineSmall)
 
-        TextButton(onClick = { viewModel.clearAllInputs() }) {
-            Text("전체 비우기", color = androidx.compose.ui.graphics.Color.Red)
-        }
+            TextButton(onClick = { viewModel.clearAllInputs() }) {
+                Text("전체 비우기", color = androidx.compose.ui.graphics.Color.Red)
+            }
 
-        // ViewModel의 리스트를 순회하며 UI 생성
-        viewModel.stockItems.forEach { item ->
-            StockInputRow(
-                item = item,
-                onValueChange = { newValue ->
-                    viewModel.onInputChanged(item.id, newValue)
-                }
-            )
+            // ViewModel의 리스트를 순회하며 UI 생성
+            viewModel.stockItems.forEach { item ->
+                StockInputRow(
+                    item = item,
+                    onValueChange = { newValue ->
+                        viewModel.onInputChanged(item.id, newValue)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
