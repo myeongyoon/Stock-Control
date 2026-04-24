@@ -3,7 +3,7 @@ package com.mychoi.linencontrol.data.remote.model
 import com.google.gson.annotations.SerializedName
 
 data class ClaudeRequest(
-    val model: String = "claude-opus-4-7",
+    val model: String = "claude-sonnet-4-6",
     @SerializedName("max_tokens") val maxTokens: Int = 1024,
     val messages: List<Message>
 ) {
