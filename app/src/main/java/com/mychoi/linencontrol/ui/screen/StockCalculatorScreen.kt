@@ -1,6 +1,9 @@
 package com.mychoi.linencontrol.ui.screen
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,17 +14,23 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,15 +45,20 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mychoi.linencontrol.ui.components.CameraScreen
 import com.mychoi.linencontrol.ui.viewmodel.CalculatorStep
+import com.mychoi.linencontrol.ui.viewmodel.SaveState
 import com.mychoi.linencontrol.ui.viewmodel.StockCalculationResult
 import com.mychoi.linencontrol.ui.viewmodel.StockCalculatorViewModel
 
@@ -73,11 +87,31 @@ fun StockCalculatorScreen(
             )
         }
 
+        is CalculatorStep.ConfirmInventorySheet -> {
+            ImageCaptureConfirmScreen(
+                title = "${step.building}동 재고 시트 확인",
+                bitmap = step.bitmap,
+                confirmLabel = "다음 단계",
+                onConfirm = viewModel::confirmInventorySheet,
+                onRetake = viewModel::retakeInventorySheet
+            )
+        }
+
         is CalculatorStep.CaptureRoomLog -> {
             CameraScreen(
                 title = "${step.building}동 객실 관리일지 촬영",
                 onImageCaptured = viewModel::onRoomLogCaptured,
-                onBack = { viewModel.retryFromInventory() }
+                onBack = { viewModel.backFromRoomLog() }
+            )
+        }
+
+        is CalculatorStep.ConfirmRoomLog -> {
+            ImageCaptureConfirmScreen(
+                title = "${step.building}동 객실 관리일지 확인",
+                bitmap = step.roomLogBitmap,
+                confirmLabel = "분석 시작",
+                onConfirm = viewModel::confirmRoomLog,
+                onRetake = viewModel::retakeRoomLog
             )
         }
 
@@ -93,6 +127,8 @@ fun StockCalculatorScreen(
         is CalculatorStep.Result -> {
             ResultScreen(
                 result = step.result,
+                saveState = uiState.saveState,
+                onSave = viewModel::saveResult,
                 onReset = viewModel::reset,
                 onBack = onNavigationBack
             )
@@ -184,6 +220,85 @@ private fun BuildingCard(
     }
 }
 
+// ─── 이미지 확인 화면 ────────────────────────────────────────────────────────
+
+@Composable
+private fun ImageCaptureConfirmScreen(
+    title: String,
+    bitmap: Bitmap,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onRetake: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        Image(
+            painter = remember(bitmap) { BitmapPainter(bitmap.asImageBitmap()) },
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
+
+        // 상단 타이틀
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .align(Alignment.TopStart),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onRetake) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "뒤로",
+                    tint = Color.White
+                )
+            }
+            Text(
+                text = title,
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
+
+        // 하단 버튼
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 40.dp, start = 24.dp, end = 24.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onRetake,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White)
+            ) {
+                Icon(
+                    Icons.Default.CameraAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("재촬영")
+            }
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(confirmLabel)
+            }
+        }
+    }
+}
+
 // ─── 분석 중 / 오류 ─────────────────────────────────────────────────────────
 
 @Composable
@@ -237,6 +352,8 @@ private fun AnalyzingScreen(
 @Composable
 private fun ResultScreen(
     result: StockCalculationResult,
+    saveState: SaveState,
+    onSave: () -> Unit,
     onReset: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -252,11 +369,63 @@ private fun ResultScreen(
             )
         },
         bottomBar = {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 저장 버튼
+                Button(
+                    onClick = onSave,
+                    enabled = saveState is SaveState.Idle || saveState is SaveState.Error,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (saveState is SaveState.Saved)
+                            MaterialTheme.colorScheme.secondary
+                        else
+                            MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    when (saveState) {
+                        is SaveState.Saving -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("저장 중...")
+                        }
+                        is SaveState.Saved -> {
+                            Icon(Icons.Default.Check, contentDescription = null,
+                                modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("저장됨")
+                        }
+                        is SaveState.Error -> {
+                            Icon(Icons.Default.Save, contentDescription = null,
+                                modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("다시 저장")
+                        }
+                        else -> {
+                            Icon(Icons.Default.Save, contentDescription = null,
+                                modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("저장")
+                        }
+                    }
+                }
+                // 오류 메시지
+                if (saveState is SaveState.Error) {
+                    Text(
+                        text = saveState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                // 다시 계산 버튼
                 OutlinedButton(
                     onClick = onReset,
                     modifier = Modifier.fillMaxWidth()
