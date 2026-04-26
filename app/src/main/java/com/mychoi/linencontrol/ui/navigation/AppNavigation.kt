@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.mychoi.linencontrol.ui.screen.HomeScreen
 import com.mychoi.linencontrol.ui.screen.StockCalculatorScreen
+import com.mychoi.linencontrol.ui.screen.StockHistoryScreen
 import com.mychoi.linencontrol.ui.screen.SumCalculatorScreen
 
 @Composable
@@ -14,34 +15,24 @@ fun AppNavigation(navController: NavHostController) {
         navController = navController,
         startDestination = Routes.Home.route
     ) {
-        // 홈 화면
         composable(route = Routes.Home.route) {
             HomeScreen(
-                onNavigateToSumCalculator = {
-                    navController.navigate(Routes.SumCalculator.route)
-                },
-                onNavigateToStockCalculator = {
-                    navController.navigate(Routes.StockCalculator.route)
-                }
+                onNavigateToSumCalculator = { navController.navigate(Routes.SumCalculator.route) },
+                onNavigateToStockCalculator = { navController.navigate(Routes.StockCalculator.route) },
+                onNavigateToHistory = { navController.navigate(Routes.StockHistory.route) }
             )
         }
 
-        // 숫자 합산 계산 화면
         composable(route = Routes.SumCalculator.route) {
-            SumCalculatorScreen(
-                onNavigationBack = {
-                    navController.popBackStack()
-                }
-            )
+            SumCalculatorScreen(onNavigationBack = { navController.popBackStack() })
         }
 
-        // 재고 차감 계산 화면
         composable(route = Routes.StockCalculator.route) {
-            StockCalculatorScreen(
-                onNavigationBack = {
-                    navController.popBackStack()
-                }
-            )
+            StockCalculatorScreen(onNavigationBack = { navController.popBackStack() })
+        }
+
+        composable(route = Routes.StockHistory.route) {
+            StockHistoryScreen(onNavigationBack = { navController.popBackStack() })
         }
     }
 }
