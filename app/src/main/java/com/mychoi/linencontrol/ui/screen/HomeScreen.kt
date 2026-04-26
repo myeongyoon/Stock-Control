@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,7 +34,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun HomeScreen(
     onNavigateToSumCalculator: () -> Unit,
-    onNavigateToStockCalculator: () -> Unit
+    onNavigateToStockCalculator: () -> Unit,
+    onNavigateToHistory: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -91,6 +93,17 @@ fun HomeScreen(
                 icon = Icons.Default.ShoppingCart,
                 onClick = onNavigateToStockCalculator,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 저장 내역 카드
+            MenuCard(
+                title = "저장 내역",
+                description = "계산 결과 저장 내역을\n조회합니다",
+                icon = Icons.Default.History,
+                onClick = onNavigateToHistory,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer
             )
         }
     }
