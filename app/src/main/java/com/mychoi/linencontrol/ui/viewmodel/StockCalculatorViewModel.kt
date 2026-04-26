@@ -3,6 +3,9 @@ package com.mychoi.linencontrol.ui.viewmodel
 import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.mychoi.linencontrol.data.local.dao.StockSaveDao
+import com.mychoi.linencontrol.data.local.entity.StockSaveEntity
 import com.mychoi.linencontrol.data.remote.repository.ClaudeRepository
 import com.mychoi.linencontrol.data.remote.repository.InventoryParseResult
 import com.mychoi.linencontrol.data.remote.repository.RoomLogParseResult
@@ -15,12 +18,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// 재고 차감 결과 항목
 data class StockResultItem(
     val label: String,
-    val current: Int,   // 재고 시트 재고
-    val used: Int,      // 객실 사용량
-    val remaining: Int  // 잔여 (current - used)
+    val current: Int,
+    val used: Int,
+    val remaining: Int
 )
 
 data class StockCalculationResult(
@@ -30,10 +32,23 @@ data class StockCalculationResult(
     val items: List<StockResultItem>
 )
 
+sealed class SaveState {
+    object Idle : SaveState()
+    object Saving : SaveState()
+    object Saved : SaveState()
+    data class Error(val message: String) : SaveState()
+}
+
 sealed class CalculatorStep {
     object SelectBuilding : CalculatorStep()
     data class CaptureInventorySheet(val building: String) : CalculatorStep()
+    data class ConfirmInventorySheet(val building: String, val bitmap: Bitmap) : CalculatorStep()
     data class CaptureRoomLog(val building: String, val inventoryBitmap: Bitmap) : CalculatorStep()
+    data class ConfirmRoomLog(
+        val building: String,
+        val inventoryBitmap: Bitmap,
+        val roomLogBitmap: Bitmap
+    ) : CalculatorStep()
     data class Analyzing(
         val building: String,
         val inventoryBitmap: Bitmap,
@@ -45,12 +60,14 @@ sealed class CalculatorStep {
 data class StockCalculatorUiState(
     val step: CalculatorStep = CalculatorStep.SelectBuilding,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val saveState: SaveState = SaveState.Idle
 )
 
 @HiltViewModel
 class StockCalculatorViewModel @Inject constructor(
-    private val claudeRepository: ClaudeRepository
+    private val claudeRepository: ClaudeRepository,
+    private val stockSaveDao: StockSaveDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StockCalculatorUiState())
@@ -60,23 +77,75 @@ class StockCalculatorViewModel @Inject constructor(
         _uiState.update { it.copy(step = CalculatorStep.CaptureInventorySheet(building)) }
     }
 
+    // 재고 시트 촬영 완료 → 확인 화면으로
     fun onInventorySheetCaptured(bitmap: Bitmap) {
         val current = _uiState.value.step as? CalculatorStep.CaptureInventorySheet ?: return
         _uiState.update {
-            it.copy(step = CalculatorStep.CaptureRoomLog(current.building, bitmap))
+            it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, bitmap))
         }
     }
 
+    fun confirmInventorySheet() {
+        val current = _uiState.value.step as? CalculatorStep.ConfirmInventorySheet ?: return
+        _uiState.update {
+            it.copy(step = CalculatorStep.CaptureRoomLog(current.building, current.bitmap))
+        }
+    }
+
+    fun retakeInventorySheet() {
+        val current = _uiState.value.step as? CalculatorStep.ConfirmInventorySheet ?: return
+        _uiState.update {
+            it.copy(step = CalculatorStep.CaptureInventorySheet(current.building))
+        }
+    }
+
+    // 객실 관리일지 촬영 완료 → 확인 화면으로
     fun onRoomLogCaptured(bitmap: Bitmap) {
         val current = _uiState.value.step as? CalculatorStep.CaptureRoomLog ?: return
         _uiState.update {
             it.copy(
-                step = CalculatorStep.Analyzing(current.building, current.inventoryBitmap, bitmap),
+                step = CalculatorStep.ConfirmRoomLog(
+                    current.building,
+                    current.inventoryBitmap,
+                    bitmap
+                )
+            )
+        }
+    }
+
+    fun confirmRoomLog() {
+        val current = _uiState.value.step as? CalculatorStep.ConfirmRoomLog ?: return
+        _uiState.update {
+            it.copy(
+                step = CalculatorStep.Analyzing(
+                    current.building,
+                    current.inventoryBitmap,
+                    current.roomLogBitmap
+                ),
                 isLoading = true,
                 errorMessage = null
             )
         }
-        analyzeImages(current.building, current.inventoryBitmap, bitmap)
+        analyzeImages(current.building, current.inventoryBitmap, current.roomLogBitmap)
+    }
+
+    fun retakeRoomLog() {
+        val current = _uiState.value.step as? CalculatorStep.ConfirmRoomLog ?: return
+        _uiState.update {
+            it.copy(
+                step = CalculatorStep.CaptureRoomLog(current.building, current.inventoryBitmap)
+            )
+        }
+    }
+
+    // CaptureRoomLog 화면 뒤로가기 → 재고 시트 확인으로 복귀
+    fun backFromRoomLog() {
+        val current = _uiState.value.step as? CalculatorStep.CaptureRoomLog ?: return
+        _uiState.update {
+            it.copy(
+                step = CalculatorStep.ConfirmInventorySheet(current.building, current.inventoryBitmap)
+            )
+        }
     }
 
     private fun analyzeImages(building: String, inventoryBitmap: Bitmap, roomLogBitmap: Bitmap) {
@@ -120,8 +189,8 @@ class StockCalculatorViewModel @Inject constructor(
     }
 
     // 린넨 구성표 차감 계산:
-    // 노랑 객실 = 침구(이불피+요피+베개피) + 타올(ft+bt)
-    // 분홍 객실 = 타올(ft+bt)만
+    // 노랑 객실 = 침구(이불피+요피+베개피) + 타올(FT+BT)
+    // 분홍 객실 = 타올(FT+BT)만
     private fun calculateStock(
         building: String,
         inventory: InventoryParseResult,
@@ -130,7 +199,6 @@ class StockCalculatorViewModel @Inject constructor(
         val yellow = roomLog.yellowCount
         val pink = roomLog.pinkCount
 
-        // 노랑: 침구 + 타올 / 분홍: 타올만
         val items = listOf(
             StockResultItem("한실이불피", inventory.한실이불피, yellow, inventory.한실이불피 - yellow),
             StockResultItem("요피", inventory.요피, yellow, inventory.요피 - yellow),
@@ -149,6 +217,30 @@ class StockCalculatorViewModel @Inject constructor(
             pinkRooms = pink,
             items = items
         )
+    }
+
+    fun saveResult() {
+        val result = (_uiState.value.step as? CalculatorStep.Result)?.result ?: return
+        if (_uiState.value.saveState is SaveState.Saved) return
+        _uiState.update { it.copy(saveState = SaveState.Saving) }
+        viewModelScope.launch {
+            runCatching {
+                val itemsJson = Gson().toJson(result.items)
+                stockSaveDao.insert(
+                    StockSaveEntity(
+                        building = result.building,
+                        savedAt = System.currentTimeMillis(),
+                        yellowRooms = result.yellowRooms,
+                        pinkRooms = result.pinkRooms,
+                        itemsJson = itemsJson
+                    )
+                )
+            }.onSuccess {
+                _uiState.update { it.copy(saveState = SaveState.Saved) }
+            }.onFailure { e ->
+                _uiState.update { it.copy(saveState = SaveState.Error(e.message ?: "저장 실패")) }
+            }
+        }
     }
 
     fun retryFromInventory() {
