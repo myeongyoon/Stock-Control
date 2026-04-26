@@ -1,6 +1,10 @@
 package com.mychoi.linencontrol.di
 
+import android.content.Context
+import androidx.room.Room
 import com.mychoi.linencontrol.BuildConfig
+import com.mychoi.linencontrol.data.local.LinenDatabase
+import com.mychoi.linencontrol.data.local.dao.StockSaveDao
 import com.mychoi.linencontrol.data.remote.api.ClaudeApiService
 import com.mychoi.linencontrol.data.remote.repository.ClaudeRepository
 import com.mychoi.linencontrol.data.repository.StockRepositoryImpl
@@ -8,6 +12,7 @@ import com.mychoi.linencontrol.domain.repository.StockRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -57,4 +62,13 @@ object AppModule {
     @Singleton
     fun provideClaudeRepository(apiService: ClaudeApiService): ClaudeRepository =
         ClaudeRepository(apiService)
+
+    @Provides
+    @Singleton
+    fun provideLinenDatabase(@ApplicationContext context: Context): LinenDatabase =
+        Room.databaseBuilder(context, LinenDatabase::class.java, "linen_db").build()
+
+    @Provides
+    @Singleton
+    fun provideStockSaveDao(db: LinenDatabase): StockSaveDao = db.stockSaveDao()
 }
