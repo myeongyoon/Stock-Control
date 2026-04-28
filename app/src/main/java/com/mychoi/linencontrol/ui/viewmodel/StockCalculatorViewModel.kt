@@ -27,8 +27,7 @@ data class StockResultItem(
 
 data class StockCalculationResult(
     val building: String,
-    val yellowRooms: Int,
-    val pinkRooms: Int,
+    val roomCounts: Map<String, Int>,
     val items: List<StockResultItem>
 )
 
@@ -188,33 +187,63 @@ class StockCalculatorViewModel @Inject constructor(
         }
     }
 
-    // 린넨 구성표 차감 계산:
-    // 노랑 객실 = 침구(이불피+요피+베개피) + 타올(FT+BT)
-    // 분홍 객실 = 타올(FT+BT)만
+    private data class LinenRequirement(
+        val 한실이불피: Int, val 요피: Int, val 한실베개피: Int,
+        val 양실이불피: Int, val 시트피: Int, val 양실베개피: Int,
+        val ft: Int, val bt: Int
+    )
+
     private fun calculateStock(
         building: String,
         inventory: InventoryParseResult,
         roomLog: RoomLogParseResult
     ): StockCalculationResult {
-        val yellow = roomLog.yellowCount
-        val pink = roomLog.pinkCount
+        val requirements = mapOf(
+            "HGS" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 1),
+            "HGD" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 0),
+            "HSO" to LinenRequirement(4, 4, 4, 0, 0, 0, 7, 0),
+            "HSR" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 0),
+            "HPR" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 1),
+            "HTS" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 1),
+            "HTD" to LinenRequirement(1, 1, 1, 2, 2, 4, 7, 1)
+        )
+        val roomCounts = mapOf(
+            "HGS" to roomLog.hgs, "HGD" to roomLog.hgd, "HSO" to roomLog.hso,
+            "HSR" to roomLog.hsr, "HPR" to roomLog.hpr, "HTS" to roomLog.hts,
+            "HTD" to roomLog.htd
+        ).filter { it.value > 0 }
+
+        var used한실이불피 = 0; var used요피 = 0; var used한실베개피 = 0
+        var used양실이불피 = 0; var used시트피 = 0; var used양실베개피 = 0
+        var usedFt = 0; var usedBt = 0
+
+        roomCounts.forEach { (type, count) ->
+            val req = requirements[type] ?: return@forEach
+            used한실이불피 += req.한실이불피 * count
+            used요피 += req.요피 * count
+            used한실베개피 += req.한실베개피 * count
+            used양실이불피 += req.양실이불피 * count
+            used시트피 += req.시트피 * count
+            used양실베개피 += req.양실베개피 * count
+            usedFt += req.ft * count
+            usedBt += req.bt * count
+        }
 
         val items = listOf(
-            StockResultItem("한실이불피", inventory.한실이불피, yellow, inventory.한실이불피 - yellow),
-            StockResultItem("요피", inventory.요피, yellow, inventory.요피 - yellow),
-            StockResultItem("한실베개피", inventory.한실베개피, yellow, inventory.한실베개피 - yellow),
-            StockResultItem("양실이불피", inventory.양실이불피, yellow, inventory.양실이불피 - yellow),
-            StockResultItem("시트피", inventory.시트피, yellow, inventory.시트피 - yellow),
-            StockResultItem("양실베개피", inventory.양실베개피, yellow, inventory.양실베개피 - yellow),
-            StockResultItem("FT(페이스타올)", inventory.ft, yellow + pink, inventory.ft - (yellow + pink)),
-            StockResultItem("BT(배스타올)", inventory.bt, yellow + pink, inventory.bt - (yellow + pink)),
+            StockResultItem("한실이불피", inventory.한실이불피, used한실이불피, inventory.한실이불피 - used한실이불피),
+            StockResultItem("요피", inventory.요피, used요피, inventory.요피 - used요피),
+            StockResultItem("한실베개피", inventory.한실베개피, used한실베개피, inventory.한실베개피 - used한실베개피),
+            StockResultItem("양실이불피", inventory.양실이불피, used양실이불피, inventory.양실이불피 - used양실이불피),
+            StockResultItem("시트피", inventory.시트피, used시트피, inventory.시트피 - used시트피),
+            StockResultItem("양실베개피", inventory.양실베개피, used양실베개피, inventory.양실베개피 - used양실베개피),
+            StockResultItem("FT(페이스타올)", inventory.ft, usedFt, inventory.ft - usedFt),
+            StockResultItem("BT(배스타올)", inventory.bt, usedBt, inventory.bt - usedBt),
             StockResultItem("걸레", inventory.걸레, 0, inventory.걸레)
         )
 
         return StockCalculationResult(
             building = building,
-            yellowRooms = yellow,
-            pinkRooms = pink,
+            roomCounts = roomCounts,
             items = items
         )
     }
@@ -225,14 +254,13 @@ class StockCalculatorViewModel @Inject constructor(
         _uiState.update { it.copy(saveState = SaveState.Saving) }
         viewModelScope.launch {
             runCatching {
-                val itemsJson = Gson().toJson(result.items)
+                val gson = Gson()
                 stockSaveDao.insert(
                     StockSaveEntity(
                         building = result.building,
                         savedAt = System.currentTimeMillis(),
-                        yellowRooms = result.yellowRooms,
-                        pinkRooms = result.pinkRooms,
-                        itemsJson = itemsJson
+                        roomCountsJson = gson.toJson(result.roomCounts),
+                        itemsJson = gson.toJson(result.items)
                     )
                 )
             }.onSuccess {
