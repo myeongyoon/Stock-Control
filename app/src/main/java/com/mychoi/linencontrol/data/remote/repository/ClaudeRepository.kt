@@ -20,8 +20,13 @@ data class InventoryParseResult(
 )
 
 data class RoomLogParseResult(
-    val yellowCount: Int = 0,
-    val pinkCount: Int = 0
+    val hgs: Int = 0,
+    val hgd: Int = 0,
+    val hso: Int = 0,
+    val hsr: Int = 0,
+    val hpr: Int = 0,
+    val hts: Int = 0,
+    val htd: Int = 0
 )
 
 class ClaudeRepository(private val apiService: ClaudeApiService) {
@@ -42,11 +47,15 @@ class ClaudeRepository(private val apiService: ClaudeApiService) {
     }
 
     suspend fun parseRoomLog(imageBase64: String, building: String): Result<RoomLogParseResult> = runCatching {
+        val tDongNote = if (building == "T") {
+            "\nT동의 경우: 1층(1F)과 4층(4F) 객실은 HTD 타입, 2층(2F)과 3층(3F) 객실은 HTS 타입이야."
+        } else ""
         val prompt = """
             이 사진은 호텔 객실 관리일지입니다.
-            ${building}동에서 노란색 형광펜으로 표시된 객실 수와 분홍색(핫핑크) 형광펜으로 표시된 객실 수를 세어줘.
+            ${building}동에서 노란색 형광펜으로 표시된 체크아웃 객실을 타입별로 세어줘.
+            각 구역 상단에 GS, GD, SO, SR, PR 등 타입이 표시되어 있어. 앞에 H를 붙여서 구분해: GS→HGS, GD→HGD, SO→HSO, SR→HSR, PR→HPR.$tDongNote
             JSON 형식으로만 반환해줘. 설명 없이 JSON만.
-            형식: {"yellowCount": 숫자, "pinkCount": 숫자}
+            형식: {"hgs": 숫자, "hgd": 숫자, "hso": 숫자, "hsr": 숫자, "hpr": 숫자, "hts": 숫자, "htd": 숫자}
         """.trimIndent()
 
         val response = apiService.sendMessage(buildRequest(imageBase64, prompt))
