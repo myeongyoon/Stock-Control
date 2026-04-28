@@ -447,10 +447,7 @@ private fun ResultScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                RoomSummaryCard(
-                    yellowRooms = result.yellowRooms,
-                    pinkRooms = result.pinkRooms
-                )
+                RoomSummaryCard(roomCounts = result.roomCounts)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "항목별 잔여 재고",
@@ -468,7 +465,7 @@ private fun ResultScreen(
 }
 
 @Composable
-private fun RoomSummaryCard(yellowRooms: Int, pinkRooms: Int) {
+private fun RoomSummaryCard(roomCounts: Map<String, Int>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -478,26 +475,38 @@ private fun RoomSummaryCard(yellowRooms: Int, pinkRooms: Int) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "객실 현황",
+                text = "체크아웃 객실 현황",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                RoomCountChip(
-                    label = "노랑 (침구+타올)",
-                    count = yellowRooms,
-                    color = Color(0xFFFFF176)
+            if (roomCounts.isEmpty()) {
+                Text(
+                    text = "체크아웃 객실 없음",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
-                RoomCountChip(
-                    label = "분홍 (타올만)",
-                    count = pinkRooms,
-                    color = Color(0xFFF48FB1)
+            } else {
+                val chipColors = listOf(
+                    Color(0xFFFFF176), Color(0xFFB3E5FC), Color(0xFFC8E6C9),
+                    Color(0xFFFFCCBC), Color(0xFFE1BEE7), Color(0xFFFFE0B2), Color(0xFFB2EBF2)
                 )
+                roomCounts.entries.chunked(3).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        row.forEachIndexed { idx, (type, count) ->
+                            RoomCountChip(
+                                label = type,
+                                count = count,
+                                color = chipColors[idx % chipColors.size]
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
         }
     }

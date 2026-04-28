@@ -39,6 +39,7 @@ import com.google.gson.reflect.TypeToken
 import com.mychoi.linencontrol.data.local.entity.StockSaveEntity
 import com.mychoi.linencontrol.ui.viewmodel.StockHistoryViewModel
 import com.mychoi.linencontrol.ui.viewmodel.StockResultItem
+import java.lang.reflect.Type
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -104,9 +105,15 @@ private fun HistoryCard(
 ) {
     val items: List<StockResultItem> = remember(record.itemsJson) {
         runCatching {
-            val type = object : TypeToken<List<StockResultItem>>() {}.type
+            val type: Type = object : TypeToken<List<StockResultItem>>() {}.type
             Gson().fromJson<List<StockResultItem>>(record.itemsJson, type)
         }.getOrDefault(emptyList())
+    }
+    val roomCounts: Map<String, Int> = remember(record.roomCountsJson) {
+        runCatching {
+            val type: Type = object : TypeToken<Map<String, Int>>() {}.type
+            Gson().fromJson<Map<String, Int>>(record.roomCountsJson, type)
+        }.getOrDefault(emptyMap())
     }
     val dateStr = remember(record.savedAt) {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA).format(Date(record.savedAt))
@@ -142,18 +149,17 @@ private fun HistoryCard(
                     )
                 }
             }
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = "노랑 ${record.yellowRooms}실",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "분홍 ${record.pinkRooms}실",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (roomCounts.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    roomCounts.forEach { (type, count) ->
+                        Text(
+                            text = "$type ${count}실",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
             if (items.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
