@@ -41,16 +41,17 @@ sealed class SaveState {
 sealed class CalculatorStep {
     object SelectBuilding : CalculatorStep()
     data class CaptureInventorySheet(val building: String) : CalculatorStep()
-    data class ConfirmInventorySheet(val building: String, val bitmap: Bitmap) : CalculatorStep()
-    data class CaptureRoomLog(val building: String, val inventoryBitmap: Bitmap) : CalculatorStep()
+    data class ConfirmInventorySheet(val building: String, val bitmaps: List<Bitmap>) : CalculatorStep()
+    data class AddMoreInventorySheet(val building: String, val existingBitmaps: List<Bitmap>) : CalculatorStep()
+    data class CaptureRoomLog(val building: String, val inventoryBitmaps: List<Bitmap>) : CalculatorStep()
     data class ConfirmRoomLog(
         val building: String,
-        val inventoryBitmap: Bitmap,
+        val inventoryBitmaps: List<Bitmap>,
         val roomLogBitmap: Bitmap
     ) : CalculatorStep()
     data class Analyzing(
         val building: String,
-        val inventoryBitmap: Bitmap,
+        val inventoryBitmaps: List<Bitmap>,
         val roomLogBitmap: Bitmap
     ) : CalculatorStep()
     data class Result(val result: StockCalculationResult) : CalculatorStep()
@@ -80,14 +81,38 @@ class StockCalculatorViewModel @Inject constructor(
     fun onInventorySheetCaptured(bitmap: Bitmap) {
         val current = _uiState.value.step as? CalculatorStep.CaptureInventorySheet ?: return
         _uiState.update {
-            it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, bitmap))
+            it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, listOf(bitmap)))
+        }
+    }
+
+    fun onMoreInventorySheetCaptured(bitmap: Bitmap) {
+        val current = _uiState.value.step as? CalculatorStep.AddMoreInventorySheet ?: return
+        _uiState.update {
+            it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, current.existingBitmaps + bitmap))
+        }
+    }
+
+    fun addMoreInventorySheet() {
+        val current = _uiState.value.step as? CalculatorStep.ConfirmInventorySheet ?: return
+        _uiState.update {
+            it.copy(step = CalculatorStep.AddMoreInventorySheet(current.building, current.bitmaps))
+        }
+    }
+
+    fun removeInventorySheet(index: Int) {
+        val current = _uiState.value.step as? CalculatorStep.ConfirmInventorySheet ?: return
+        val newBitmaps = current.bitmaps.toMutableList().also { it.removeAt(index) }
+        if (newBitmaps.isEmpty()) {
+            _uiState.update { it.copy(step = CalculatorStep.CaptureInventorySheet(current.building)) }
+        } else {
+            _uiState.update { it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, newBitmaps)) }
         }
     }
 
     fun confirmInventorySheet() {
         val current = _uiState.value.step as? CalculatorStep.ConfirmInventorySheet ?: return
         _uiState.update {
-            it.copy(step = CalculatorStep.CaptureRoomLog(current.building, current.bitmap))
+            it.copy(step = CalculatorStep.CaptureRoomLog(current.building, current.bitmaps))
         }
     }
 
@@ -98,6 +123,13 @@ class StockCalculatorViewModel @Inject constructor(
         }
     }
 
+    fun backFromAddMore() {
+        val current = _uiState.value.step as? CalculatorStep.AddMoreInventorySheet ?: return
+        _uiState.update {
+            it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, current.existingBitmaps))
+        }
+    }
+
     // 객실 관리일지 촬영 완료 → 확인 화면으로
     fun onRoomLogCaptured(bitmap: Bitmap) {
         val current = _uiState.value.step as? CalculatorStep.CaptureRoomLog ?: return
@@ -105,7 +137,7 @@ class StockCalculatorViewModel @Inject constructor(
             it.copy(
                 step = CalculatorStep.ConfirmRoomLog(
                     current.building,
-                    current.inventoryBitmap,
+                    current.inventoryBitmaps,
                     bitmap
                 )
             )
@@ -118,21 +150,21 @@ class StockCalculatorViewModel @Inject constructor(
             it.copy(
                 step = CalculatorStep.Analyzing(
                     current.building,
-                    current.inventoryBitmap,
+                    current.inventoryBitmaps,
                     current.roomLogBitmap
                 ),
                 isLoading = true,
                 errorMessage = null
             )
         }
-        analyzeImages(current.building, current.inventoryBitmap, current.roomLogBitmap)
+        analyzeImages(current.building, current.inventoryBitmaps, current.roomLogBitmap)
     }
 
     fun retakeRoomLog() {
         val current = _uiState.value.step as? CalculatorStep.ConfirmRoomLog ?: return
         _uiState.update {
             it.copy(
-                step = CalculatorStep.CaptureRoomLog(current.building, current.inventoryBitmap)
+                step = CalculatorStep.CaptureRoomLog(current.building, current.inventoryBitmaps)
             )
         }
     }
@@ -142,28 +174,48 @@ class StockCalculatorViewModel @Inject constructor(
         val current = _uiState.value.step as? CalculatorStep.CaptureRoomLog ?: return
         _uiState.update {
             it.copy(
-                step = CalculatorStep.ConfirmInventorySheet(current.building, current.inventoryBitmap)
+                step = CalculatorStep.ConfirmInventorySheet(current.building, current.inventoryBitmaps)
             )
         }
     }
 
-    private fun analyzeImages(building: String, inventoryBitmap: Bitmap, roomLogBitmap: Bitmap) {
+    private fun analyzeImages(building: String, inventoryBitmaps: List<Bitmap>, roomLogBitmap: Bitmap) {
         viewModelScope.launch {
-            val inventoryBase64 = ImageUtils.bitmapToBase64(inventoryBitmap)
-            val roomLogBase64 = ImageUtils.bitmapToBase64(roomLogBitmap)
+            // 재고 시트 여러 장 순차 분석
+            val inventoryResults = inventoryBitmaps.map { bitmap ->
+                claudeRepository.parseInventorySheet(ImageUtils.bitmapToBase64(bitmap))
+            }
 
-            val inventoryResult = claudeRepository.parseInventorySheet(inventoryBase64)
-            val roomLogResult = claudeRepository.parseRoomLog(roomLogBase64, building)
-
-            if (inventoryResult.isFailure) {
+            val failedInventory = inventoryResults.firstOrNull { it.isFailure }
+            if (failedInventory != null) {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = "재고 시트 분석 실패: ${inventoryResult.exceptionOrNull()?.message}"
+                        errorMessage = "재고 시트 분석 실패: ${failedInventory.exceptionOrNull()?.message}"
                     )
                 }
                 return@launch
             }
+
+            // 모든 층 재고 합산
+            val combinedInventory = inventoryResults
+                .map { it.getOrThrow() }
+                .fold(InventoryParseResult()) { acc, result ->
+                    InventoryParseResult(
+                        한실이불피 = acc.한실이불피 + result.한실이불피,
+                        요피 = acc.요피 + result.요피,
+                        한실베개피 = acc.한실베개피 + result.한실베개피,
+                        양실이불피 = acc.양실이불피 + result.양실이불피,
+                        시트피 = acc.시트피 + result.시트피,
+                        양실베개피 = acc.양실베개피 + result.양실베개피,
+                        ft = acc.ft + result.ft,
+                        bt = acc.bt + result.bt,
+                        걸레 = acc.걸레 + result.걸레
+                    )
+                }
+
+            val roomLogResult = claudeRepository.parseRoomLog(ImageUtils.bitmapToBase64(roomLogBitmap), building)
+
             if (roomLogResult.isFailure) {
                 _uiState.update {
                     it.copy(
@@ -174,9 +226,7 @@ class StockCalculatorViewModel @Inject constructor(
                 return@launch
             }
 
-            val inventory = inventoryResult.getOrThrow()
-            val roomLog = roomLogResult.getOrThrow()
-            val calculationResult = calculateStock(building, inventory, roomLog)
+            val calculationResult = calculateStock(building, combinedInventory, roomLogResult.getOrThrow())
 
             _uiState.update {
                 it.copy(
@@ -284,6 +334,22 @@ class StockCalculatorViewModel @Inject constructor(
                 isLoading = false,
                 errorMessage = null
             )
+        }
+    }
+
+    fun retryRoomLogOnly() {
+        val current = _uiState.value.step
+        when (current) {
+            is CalculatorStep.Analyzing -> {
+                _uiState.update {
+                    it.copy(
+                        step = CalculatorStep.CaptureRoomLog(current.building, current.inventoryBitmaps),
+                        isLoading = false,
+                        errorMessage = null
+                    )
+                }
+            }
+            else -> return
         }
     }
 
