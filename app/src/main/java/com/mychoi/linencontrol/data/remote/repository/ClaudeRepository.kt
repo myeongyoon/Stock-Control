@@ -19,14 +19,19 @@ data class InventoryParseResult(
     @SerializedName("걸레") val 걸레: Int = 0
 )
 
+data class RoomTypeCounts(
+    @SerializedName("hgs") val hgs: Int = 0,
+    @SerializedName("hgd") val hgd: Int = 0,
+    @SerializedName("hso") val hso: Int = 0,
+    @SerializedName("hsr") val hsr: Int = 0,
+    @SerializedName("hpr") val hpr: Int = 0,
+    @SerializedName("hts") val hts: Int = 0,
+    @SerializedName("htd") val htd: Int = 0
+)
+
 data class RoomLogParseResult(
-    val hgs: Int = 0,
-    val hgd: Int = 0,
-    val hso: Int = 0,
-    val hsr: Int = 0,
-    val hpr: Int = 0,
-    val hts: Int = 0,
-    val htd: Int = 0
+    @SerializedName("checkout") val checkout: RoomTypeCounts = RoomTypeCounts(),
+    @SerializedName("stayover") val stayover: RoomTypeCounts = RoomTypeCounts()
 )
 
 class ClaudeRepository(private val apiService: ClaudeApiService) {
@@ -48,14 +53,40 @@ class ClaudeRepository(private val apiService: ClaudeApiService) {
 
     suspend fun parseRoomLog(imageBase64: String, building: String): Result<RoomLogParseResult> = runCatching {
         val tDongNote = if (building == "T") {
-            "\nT동의 경우: 1층(1F)과 4층(4F) 객실은 HTD 타입, 2층(2F)과 3층(3F) 객실은 HTS 타입이야."
+            """
+
+            [T동 특수 규칙]
+            T동은 층에 따라 객실 타입이 다름:
+            - 1층(1F) 객실 번호 100번대: HTD 타입
+            - 2층(2F) 객실 번호 200번대: HTS 타입
+            - 3층(3F) 객실 번호 300번대: HTS 타입
+            - 4층(4F) 객실 번호 400번대: HTD 타입
+            각 층 구역에서 노란색 형광펜 표시된 객실 수를 위 타입으로 분류해서 세어줘.
+            """.trimIndent()
         } else ""
+
         val prompt = """
-            이 사진은 호텔 객실 관리일지입니다.
-            ${building}동에서 노란색 형광펜으로 표시된 체크아웃 객실을 타입별로 세어줘.
-            각 구역 상단에 GS, GD, SO, SR, PR 등 타입이 표시되어 있어. 앞에 H를 붙여서 구분해: GS→HGS, GD→HGD, SO→HSO, SR→HSR, PR→HPR.$tDongNote
-            JSON 형식으로만 반환해줘. 설명 없이 JSON만.
-            형식: {"hgs": 숫자, "hgd": 숫자, "hso": 숫자, "hsr": 숫자, "hpr": 숫자, "hts": 숫자, "htd": 숫자}
+            이 사진은 호텔 ${building}동 객실 관리일지(하우스키핑 보고서)야.
+
+            [객실 상태 분류 규칙]
+            1. 퇴실(checkout): 형광노랑(황색)으로만 칠해진 칸. 단, 아래 재실 조건에 해당하면 제외.
+            2. 재실(stayover): 다음 중 하나에 해당하는 칸
+               - 형광분홍 또는 형광주황으로 칠해진 칸
+               - 형광노랑이지만 체크 표시(✓), 동그라미(○), 또는 "VD" 글자가 적혀있는 칸
+            3. 공실: 아무 색도 칠해지지 않은 빈 칸 → 무시
+
+            [객실 타입 식별 방법]
+            - 표의 각 열(column) 헤더 또는 구역 상단에 타입 코드가 적혀 있어
+            - GS, GD, SO, SR, PR 등으로 표시됨
+            - 앞에 H를 붙여서 변환: GS→HGS, GD→HGD, SO→HSO, SR→HSR, PR→HPR$tDongNote
+
+            [주의사항]
+            - 형광노랑 + VD/체크/동그라미 칸은 반드시 stayover로 분류 (checkout 아님)
+            - 타입이 보이지 않거나 해당 타입이 없으면 0으로 처리
+            - 각 칸을 꼼꼼히 확인하여 정확하게 세어줘
+
+            JSON 형식으로만 반환. 설명 없이 JSON만.
+            형식: {"checkout": {"hgs": 숫자, "hgd": 숫자, "hso": 숫자, "hsr": 숫자, "hpr": 숫자, "hts": 숫자, "htd": 숫자}, "stayover": {"hgs": 숫자, "hgd": 숫자, "hso": 숫자, "hsr": 숫자, "hpr": 숫자, "hts": 숫자, "htd": 숫자}}
         """.trimIndent()
 
         val response = apiService.sendMessage(buildRequest(imageBase64, prompt))
