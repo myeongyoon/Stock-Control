@@ -20,12 +20,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Warning
@@ -88,12 +93,21 @@ fun StockCalculatorScreen(
         }
 
         is CalculatorStep.ConfirmInventorySheet -> {
-            ImageCaptureConfirmScreen(
-                title = "${step.building}동 재고 시트 확인",
-                bitmap = step.bitmap,
-                confirmLabel = "다음 단계",
+            MultiInventoryConfirmScreen(
+                building = step.building,
+                bitmaps = step.bitmaps,
                 onConfirm = viewModel::confirmInventorySheet,
-                onRetake = viewModel::retakeInventorySheet
+                onRetakeAll = viewModel::retakeInventorySheet,
+                onAddMore = viewModel::addMoreInventorySheet,
+                onRemove = viewModel::removeInventorySheet
+            )
+        }
+
+        is CalculatorStep.AddMoreInventorySheet -> {
+            CameraScreen(
+                title = "${step.building}동 재고 시트 추가 촬영 (${step.existingBitmaps.size + 1}번째)",
+                onImageCaptured = viewModel::onMoreInventorySheetCaptured,
+                onBack = viewModel::backFromAddMore
             )
         }
 
@@ -119,7 +133,8 @@ fun StockCalculatorScreen(
             AnalyzingScreen(
                 isLoading = uiState.isLoading,
                 errorMessage = uiState.errorMessage,
-                onRetry = { viewModel.retryFromInventory() },
+                onRetryInventory = viewModel::retryFromInventory,
+                onRetryRoomLog = viewModel::retryRoomLogOnly,
                 onReset = viewModel::reset
             )
         }
@@ -220,6 +235,121 @@ private fun BuildingCard(
     }
 }
 
+// ─── 재고 시트 다중 확인 화면 ────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MultiInventoryConfirmScreen(
+    building: String,
+    bitmaps: List<Bitmap>,
+    onConfirm: () -> Unit,
+    onRetakeAll: () -> Unit,
+    onAddMore: () -> Unit,
+    onRemove: (Int) -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("${building}동 재고 시트 확인") },
+                navigationIcon = {
+                    IconButton(onClick = onRetakeAll) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "처음부터")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onAddMore,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("층 추가 촬영")
+                }
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("다음 단계 (총 ${bitmaps.size}장)")
+                }
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "촬영된 재고 시트 ${bitmaps.size}장",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(bitmaps) { index, bitmap ->
+                    Box {
+                        Card(
+                            shape = RoundedCornerShape(8.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Image(
+                                painter = remember(bitmap) { BitmapPainter(bitmap.asImageBitmap()) },
+                                contentDescription = "${index + 1}번째 재고 시트",
+                                modifier = Modifier.size(140.dp),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        // 삭제 버튼
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
+                                .size(24.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .clickable { onRemove(index) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "삭제",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        // 번호 뱃지
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "${index + 1}층",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ─── 이미지 확인 화면 ────────────────────────────────────────────────────────
 
 @Composable
@@ -305,7 +435,8 @@ private fun ImageCaptureConfirmScreen(
 private fun AnalyzingScreen(
     isLoading: Boolean,
     errorMessage: String?,
-    onRetry: () -> Unit,
+    onRetryInventory: () -> Unit,
+    onRetryRoomLog: () -> Unit,
     onReset: () -> Unit
 ) {
     Box(
@@ -337,9 +468,19 @@ private fun AnalyzingScreen(
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = onReset) { Text("처음부터") }
-                    Button(onClick = onRetry) { Text("재촬영") }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onRetryRoomLog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("객실 관리일지 재촬영") }
+                    OutlinedButton(
+                        onClick = onRetryInventory,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("재고 시트부터 다시") }
+                    OutlinedButton(
+                        onClick = onReset,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("처음부터") }
                 }
             }
         }
@@ -447,8 +588,27 @@ private fun ResultScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
-                RoomSummaryCard(roomCounts = result.roomCounts)
-                Spacer(modifier = Modifier.height(8.dp))
+                RoomSummaryCard(
+                    checkoutRoomCounts = result.checkoutRoomCounts,
+                    stayoverRoomCounts = result.stayoverRoomCounts
+                )
+            }
+            if (result.floorInventories.size > 1) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "층별 재고 현황",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+                items(result.floorInventories) { floor ->
+                    FloorInventoryCard(floorInventory = floor)
+                }
+            }
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "항목별 잔여 재고",
                     style = MaterialTheme.typography.titleMedium,
@@ -465,7 +625,16 @@ private fun ResultScreen(
 }
 
 @Composable
-private fun RoomSummaryCard(roomCounts: Map<String, Int>) {
+private fun RoomSummaryCard(
+    checkoutRoomCounts: Map<String, Int>,
+    stayoverRoomCounts: Map<String, Int>
+) {
+    val checkoutChipColor = Color(0xFFFFF176)
+    val stayoverChipColors = listOf(
+        Color(0xFFFFAB91), Color(0xFFFFCC80), Color(0xFFF48FB1),
+        Color(0xFFCE93D8), Color(0xFF80DEEA), Color(0xFFA5D6A7), Color(0xFF90CAF9)
+    )
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -475,24 +644,42 @@ private fun RoomSummaryCard(roomCounts: Map<String, Int>) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "체크아웃 객실 현황",
+                text = "퇴실 객실 (체크아웃)",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(modifier = Modifier.height(8.dp))
-            if (roomCounts.isEmpty()) {
+            if (checkoutRoomCounts.isEmpty()) {
                 Text(
-                    text = "체크아웃 객실 없음",
+                    text = "퇴실 객실 없음",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             } else {
-                val chipColors = listOf(
-                    Color(0xFFFFF176), Color(0xFFB3E5FC), Color(0xFFC8E6C9),
-                    Color(0xFFFFCCBC), Color(0xFFE1BEE7), Color(0xFFFFE0B2), Color(0xFFB2EBF2)
+                checkoutRoomCounts.entries.chunked(4).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        row.forEach { (type, count) ->
+                            RoomCountChip(label = type, count = count, color = checkoutChipColor)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+
+            if (stayoverRoomCounts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "재실 객실",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
-                roomCounts.entries.chunked(3).forEach { row ->
+                Spacer(modifier = Modifier.height(8.dp))
+                stayoverRoomCounts.entries.chunked(4).forEachIndexed { chunkIdx, row ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -501,12 +688,71 @@ private fun RoomSummaryCard(roomCounts: Map<String, Int>) {
                             RoomCountChip(
                                 label = type,
                                 count = count,
-                                color = chipColors[idx % chipColors.size]
+                                color = stayoverChipColors[(chunkIdx * 4 + idx) % stayoverChipColors.size]
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloorInventoryCard(floorInventory: com.mychoi.linencontrol.ui.viewmodel.FloorInventory) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "${floorInventory.floor}층",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            val labels = listOf(
+                "한실이불피" to floorInventory.한실이불피,
+                "요피" to floorInventory.요피,
+                "한실베개피" to floorInventory.한실베개피,
+                "양실이불피" to floorInventory.양실이불피,
+                "시트피" to floorInventory.시트피,
+                "양실베개피" to floorInventory.양실베개피,
+                "FT" to floorInventory.ft,
+                "BT" to floorInventory.bt,
+                "걸레" to floorInventory.걸레
+            ).filter { it.second > 0 }
+            labels.chunked(3).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { (label, value) ->
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = value.toString(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }
