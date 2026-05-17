@@ -9,6 +9,7 @@ import com.mychoi.linencontrol.data.local.entity.StockSaveEntity
 import com.mychoi.linencontrol.data.remote.repository.ClaudeRepository
 import com.mychoi.linencontrol.data.remote.repository.InventoryParseResult
 import com.mychoi.linencontrol.data.remote.repository.RoomLogParseResult
+import com.mychoi.linencontrol.data.remote.repository.RoomTypeCounts
 import com.mychoi.linencontrol.util.ImageUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,9 +26,24 @@ data class StockResultItem(
     val remaining: Int
 )
 
+data class FloorInventory(
+    val floor: Int,
+    val 한실이불피: Int,
+    val 요피: Int,
+    val 한실베개피: Int,
+    val 양실이불피: Int,
+    val 시트피: Int,
+    val 양실베개피: Int,
+    val ft: Int,
+    val bt: Int,
+    val 걸레: Int
+)
+
 data class StockCalculationResult(
     val building: String,
-    val roomCounts: Map<String, Int>,
+    val checkoutRoomCounts: Map<String, Int>,
+    val stayoverRoomCounts: Map<String, Int>,
+    val floorInventories: List<FloorInventory>,
     val items: List<StockResultItem>
 )
 
@@ -197,22 +213,28 @@ class StockCalculatorViewModel @Inject constructor(
                 return@launch
             }
 
-            // 모든 층 재고 합산
-            val combinedInventory = inventoryResults
-                .map { it.getOrThrow() }
-                .fold(InventoryParseResult()) { acc, result ->
-                    InventoryParseResult(
-                        한실이불피 = acc.한실이불피 + result.한실이불피,
-                        요피 = acc.요피 + result.요피,
-                        한실베개피 = acc.한실베개피 + result.한실베개피,
-                        양실이불피 = acc.양실이불피 + result.양실이불피,
-                        시트피 = acc.시트피 + result.시트피,
-                        양실베개피 = acc.양실베개피 + result.양실베개피,
-                        ft = acc.ft + result.ft,
-                        bt = acc.bt + result.bt,
-                        걸레 = acc.걸레 + result.걸레
-                    )
-                }
+            val parsedInventories = inventoryResults.map { it.getOrThrow() }
+            val floorInventories = parsedInventories.mapIndexed { index, inv ->
+                FloorInventory(
+                    floor = index + 1,
+                    한실이불피 = inv.한실이불피, 요피 = inv.요피, 한실베개피 = inv.한실베개피,
+                    양실이불피 = inv.양실이불피, 시트피 = inv.시트피, 양실베개피 = inv.양실베개피,
+                    ft = inv.ft, bt = inv.bt, 걸레 = inv.걸레
+                )
+            }
+            val combinedInventory = parsedInventories.fold(InventoryParseResult()) { acc, result ->
+                InventoryParseResult(
+                    한실이불피 = acc.한실이불피 + result.한실이불피,
+                    요피 = acc.요피 + result.요피,
+                    한실베개피 = acc.한실베개피 + result.한실베개피,
+                    양실이불피 = acc.양실이불피 + result.양실이불피,
+                    시트피 = acc.시트피 + result.시트피,
+                    양실베개피 = acc.양실베개피 + result.양실베개피,
+                    ft = acc.ft + result.ft,
+                    bt = acc.bt + result.bt,
+                    걸레 = acc.걸레 + result.걸레
+                )
+            }
 
             val roomLogResult = claudeRepository.parseRoomLog(ImageUtils.bitmapToBase64(roomLogBitmap), building)
 
@@ -226,7 +248,7 @@ class StockCalculatorViewModel @Inject constructor(
                 return@launch
             }
 
-            val calculationResult = calculateStock(building, combinedInventory, roomLogResult.getOrThrow())
+            val calculationResult = calculateStock(building, combinedInventory, roomLogResult.getOrThrow(), floorInventories)
 
             _uiState.update {
                 it.copy(
@@ -246,7 +268,8 @@ class StockCalculatorViewModel @Inject constructor(
     private fun calculateStock(
         building: String,
         inventory: InventoryParseResult,
-        roomLog: RoomLogParseResult
+        roomLog: RoomLogParseResult,
+        floorInventories: List<FloorInventory>
     ): StockCalculationResult {
         val requirements = mapOf(
             "HGS" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 1),
@@ -257,17 +280,20 @@ class StockCalculatorViewModel @Inject constructor(
             "HTS" to LinenRequirement(3, 3, 3, 1, 1, 2, 7, 1),
             "HTD" to LinenRequirement(1, 1, 1, 2, 2, 4, 7, 1)
         )
-        val roomCounts = mapOf(
-            "HGS" to roomLog.hgs, "HGD" to roomLog.hgd, "HSO" to roomLog.hso,
-            "HSR" to roomLog.hsr, "HPR" to roomLog.hpr, "HTS" to roomLog.hts,
-            "HTD" to roomLog.htd
+
+        fun RoomTypeCounts.toMap(): Map<String, Int> = mapOf(
+            "HGS" to hgs, "HGD" to hgd, "HSO" to hso,
+            "HSR" to hsr, "HPR" to hpr, "HTS" to hts, "HTD" to htd
         ).filter { it.value > 0 }
+
+        val checkoutRoomCounts = roomLog.checkout.toMap()
+        val stayoverRoomCounts = roomLog.stayover.toMap()
 
         var used한실이불피 = 0; var used요피 = 0; var used한실베개피 = 0
         var used양실이불피 = 0; var used시트피 = 0; var used양실베개피 = 0
         var usedFt = 0; var usedBt = 0
 
-        roomCounts.forEach { (type, count) ->
+        checkoutRoomCounts.forEach { (type, count) ->
             val req = requirements[type] ?: return@forEach
             used한실이불피 += req.한실이불피 * count
             used요피 += req.요피 * count
@@ -293,7 +319,9 @@ class StockCalculatorViewModel @Inject constructor(
 
         return StockCalculationResult(
             building = building,
-            roomCounts = roomCounts,
+            checkoutRoomCounts = checkoutRoomCounts,
+            stayoverRoomCounts = stayoverRoomCounts,
+            floorInventories = floorInventories,
             items = items
         )
     }
@@ -309,7 +337,8 @@ class StockCalculatorViewModel @Inject constructor(
                     StockSaveEntity(
                         building = result.building,
                         savedAt = System.currentTimeMillis(),
-                        roomCountsJson = gson.toJson(result.roomCounts),
+                        roomCountsJson = gson.toJson(result.checkoutRoomCounts),
+                        stayoverRoomCountsJson = gson.toJson(result.stayoverRoomCounts),
                         itemsJson = gson.toJson(result.items)
                     )
                 )

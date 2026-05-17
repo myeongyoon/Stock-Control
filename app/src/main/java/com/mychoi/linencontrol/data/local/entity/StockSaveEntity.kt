@@ -8,7 +8,7 @@ data class StockSaveEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val building: String,
     val savedAt: Long,
-    val yellowRooms: Int,
-    val pinkRooms: Int,
+    val roomCountsJson: String,
+    val stayoverRoomCountsJson: String = "{}",
     val itemsJson: String
 )
