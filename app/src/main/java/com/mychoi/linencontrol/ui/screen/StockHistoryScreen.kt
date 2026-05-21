@@ -115,6 +115,12 @@ private fun HistoryCard(
             Gson().fromJson<Map<String, Int>>(record.roomCountsJson, type)
         }.getOrDefault(emptyMap())
     }
+    val stayoverRoomCounts: Map<String, Int> = remember(record.stayoverRoomCountsJson) {
+        runCatching {
+            val type: Type = object : TypeToken<Map<String, Int>>() {}.type
+            Gson().fromJson<Map<String, Int>>(record.stayoverRoomCountsJson, type)
+        }.getOrDefault(emptyMap())
+    }
     val dateStr = remember(record.savedAt) {
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.KOREA).format(Date(record.savedAt))
     }
@@ -151,8 +157,30 @@ private fun HistoryCard(
             }
             if (roomCounts.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "퇴실",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     roomCounts.forEach { (type, count) ->
+                        Text(
+                            text = "$type ${count}실",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            if (stayoverRoomCounts.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "재실",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    stayoverRoomCounts.forEach { (type, count) ->
                         Text(
                             text = "$type ${count}실",
                             style = MaterialTheme.typography.bodySmall,
