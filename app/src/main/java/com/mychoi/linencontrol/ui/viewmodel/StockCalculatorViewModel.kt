@@ -90,11 +90,13 @@ class StockCalculatorViewModel @Inject constructor(
     val uiState: StateFlow<StockCalculatorUiState> = _uiState.asStateFlow()
 
     fun selectBuilding(building: String) {
+        // StockCalculatorUiState class에서 step만 변경(얕은 복사)
         _uiState.update { it.copy(step = CalculatorStep.CaptureInventorySheet(building)) }
     }
 
     // 재고 시트 촬영 완료 → 확인 화면으로
     fun onInventorySheetCaptured(bitmap: Bitmap) {
+        // safe cast
         val current = _uiState.value.step as? CalculatorStep.CaptureInventorySheet ?: return
         _uiState.update {
             it.copy(step = CalculatorStep.ConfirmInventorySheet(current.building, listOf(bitmap)))
